@@ -62,3 +62,5 @@ Client vs. Server Components: We have strategically used Next.js's App Router to
 State Management: Zustand was chosen for its simplicity and minimal boilerplate, making it easy to manage the complex state of the polygons and their associated data without unnecessary complexity.
 
 Hydration Error Resolution: The project encountered and resolved a common hydration error by ensuring that initial state values (especially those based on dynamic data like Date.now()) are set consistently on both the server and client using the useEffect hook.
+<img width="1920" height="1020" alt="Screenshot 2025-08-06 152421" src="https://github.com/user-attachments/assets/1a5aaa8a-d847-49c6-8e65-6185c5ff0572" />
+<img width="1920" height="1020" alt="Screenshot 2025-08-06 152349" src="https://github.com/user-attachments/assets/8d9abfa6-3c69-4b75-880b-317871fb2652" />
