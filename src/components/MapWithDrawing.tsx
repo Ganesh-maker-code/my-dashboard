@@ -1,93 +1,95 @@
 // src/components/MapWithDrawing.tsx
 "use client";
+import { useEffect } from "react";
+import { MapContainer, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet-draw/dist/leaflet.draw.css";
-import {
-  MapContainer,
-  TileLayer,
-  FeatureGroup,
-  useMapEvents,
-} from "react-leaflet";
-import { EditControl } from "react-leaflet-draw";
 import L from "leaflet";
 import { useDashboardStore } from "../store";
-import ColoredPolygon from "./ColoredPolygon";
+import "leaflet-draw/dist/leaflet.draw.css";
+import "leaflet-draw";
 
-delete (L.Icon.Default.prototype as any)._get;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require("leaflet/dist/images/marker-icon-2x.png").default,
-  iconUrl: require("leaflet/dist/images/marker-icon.png").default,
-  shadowUrl: require("leaflet/dist/images/marker-shadow.png").default,
-});
+const MapWithDrawing = () => {
+  const { addPolygon } = useDashboardStore();
 
-const MapWithDrawing: React.FC = () => {
-  const { addPolygon, polygons } = useDashboardStore();
+  useEffect(() => {
+    const map = L.map("map-container").setView([20, 0], 2);
 
-  const onCreated = (e: any) => {
-    const { layer } = e;
-    if (layer instanceof L.Polygon) {
-      const latLngs = layer
-        .getLatLngs()[0]
-        .map((ll: L.LatLng) => [ll.lat, ll.lng]);
-      if (latLngs.length >= 3) {
-        addPolygon({
-          id: Date.now().toString(),
-          latLngs: latLngs as [number, number][],
-          dataSource: "open-meteo",
-          colorRules: [
-            { operator: ">", value: 25, color: "#ff0000" },
-            { operator: "<", value: 18, color: "#0000ff" },
-          ],
-        });
-      }
-    }
-  };
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
 
-  const MapEvents = () => {
-    const map = useMapEvents({
-      moveend: () => {
-        // Can be used to store map center, but not required for this task
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems,
+        remove: false,
+      },
+      draw: {
+        polyline: false,
+        marker: false,
+        circle: false,
+        circlemarker: false,
+        rectangle: false,
+        polygon: {
+          allowIntersection: false,
+          showArea: true,
+        },
       },
     });
-    return null;
-  };
+    map.addControl(drawControl);
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+      const { layer } = e as L.DrawEvents.Created;
+      drawnItems.addLayer(layer);
+
+      if (layer instanceof L.Polygon) {
+        const latLngs = layer.getLatLngs();
+        let coords: [number, number][] = [];
+
+        if (Array.isArray(latLngs) && latLngs.length > 0) {
+          // Corrected: Cast latLngs[0] to L.LatLng[] to map over it correctly
+          if (Array.isArray(latLngs[0])) {
+            const innerLatLngs = latLngs[0] as L.LatLng[];
+            coords = innerLatLngs.map((ll) => [ll.lat, ll.lng]);
+          } else {
+            // Case for L.LatLng[]
+            coords = (latLngs as L.LatLng[]).map((ll) => [ll.lat, ll.lng]);
+          }
+        }
+
+        if (coords.length >= 3) {
+          addPolygon({
+            id: Date.now().toString(),
+            latLngs: coords,
+            dataSource: "open-meteo",
+            colorRules: [],
+          });
+        }
+      }
+    });
+
+    return () => {
+      map.remove();
+    };
+  }, [addPolygon]);
 
   return (
-    <MapContainer
-      center={[52.52, 13.415]}
-      zoom={13}
-      scrollWheelZoom={false}
-      style={{ height: "100%", width: "100%" }}
-      maxZoom={13}
-      minZoom={13}
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-      />
-      <FeatureGroup>
-        <EditControl
-          position="topright"
-          onCreated={onCreated}
-          draw={{
-            rectangle: false,
-            circle: false,
-            marker: false,
-            circlemarker: false,
-            polygon: {
-              allowIntersection: false,
-              shapeOptions: { color: "blue" },
-              showArea: true,
-              maxPoints: 12,
-            },
-          }}
+    <div id="map-container" style={{ flexGrow: 1, height: "100vh" }}>
+      <MapContainer
+        center={[20, 0]}
+        zoom={2}
+        style={{ height: "100%", width: "100%" }}
+        id="map-container-leaflet"
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-      </FeatureGroup>
-      {polygons.map((p) => (
-        <ColoredPolygon key={p.id} polygonId={p.id} />
-      ))}
-      <MapEvents />
-    </MapContainer>
+      </MapContainer>
+    </div>
   );
 };
 

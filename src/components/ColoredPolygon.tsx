@@ -1,59 +1,63 @@
 // src/components/ColoredPolygon.tsx
-"use client";
-import React from "react";
-import { Polygon, Popup } from "react-leaflet";
-import { useDashboardStore } from "../store";
+import { Polygon } from "react-leaflet";
+import { useMemo } from "react";
+import { useDashboardStore, PolygonData, WeatherData } from "../store";
 
-interface ColorRule {
-  operator: "<" | ">";
-  value: number;
-  color: string;
+interface ColoredPolygonProps {
+  polygon: PolygonData;
 }
 
-const getPolygonColor = (data: any, rules: ColorRule[]): string => {
-  const temperatures = data?.hourly?.temperature_2m || [];
-  if (temperatures.length === 0) return "#808080";
+const ColoredPolygon: React.FC<ColoredPolygonProps> = ({ polygon }) => {
+  const { selectedTimeRange } = useDashboardStore();
+  const [startTime, endTime] = selectedTimeRange;
 
-  const averageTemp =
-    temperatures.reduce((a: number, b: number) => a + b, 0) /
-    temperatures.length;
+  // Corrected: Use the WeatherData interface instead of 'any'
+  const weatherData: WeatherData | null = polygon.fetchedData;
 
-  for (const rule of rules) {
-    if (rule.operator === ">" && averageTemp > rule.value) return rule.color;
-    if (rule.operator === "<" && averageTemp < rule.value) return rule.color;
-  }
+  const polygonColor = useMemo(() => {
+    if (!weatherData) {
+      return "#808080"; // Default color for no data
+    }
 
-  return "#808080";
-};
+    // Find the average temperature for the selected time range
+    const startTimestamp = startTime;
+    const endTimestamp = endTime;
 
-const ColoredPolygon: React.FC<{ polygonId: string }> = ({ polygonId }) => {
-  const polygon = useDashboardStore((state) =>
-    state.polygons.find((p) => p.id === polygonId)
-  );
+    const relevantTemps = weatherData.hourly.time
+      .map((timeStr, index) => ({
+        time: new Date(timeStr).getTime(),
+        temp: weatherData.hourly.temperature_2m[index],
+      }))
+      .filter(
+        (item) => item.time >= startTimestamp && item.time <= endTimestamp
+      )
+      .map((item) => item.temp);
 
-  if (!polygon) return null;
+    if (relevantTemps.length === 0) {
+      return "#808080";
+    }
 
-  const fillColor = getPolygonColor(polygon.fetchedData, polygon.colorRules);
+    const averageTemp =
+      relevantTemps.reduce((sum, temp) => sum + temp, 0) / relevantTemps.length;
+
+    // Apply coloring rules
+    for (const rule of polygon.colorRules) {
+      if (rule.operator === ">" && averageTemp > rule.value) {
+        return rule.color;
+      }
+      if (rule.operator === "<" && averageTemp < rule.value) {
+        return rule.color;
+      }
+    }
+
+    return "#808080"; // Default if no rule matches
+  }, [weatherData, polygon.colorRules, startTime, endTime]);
 
   return (
     <Polygon
       positions={polygon.latLngs}
-      pathOptions={{ color: fillColor, fillColor, weight: 2, opacity: 0.8 }}
-    >
-      <Popup>
-        Polygon ID: {polygon.id} <br />
-        Average Temp:{" "}
-        {polygon.fetchedData?.hourly?.temperature_2m?.length
-          ? (
-              polygon.fetchedData.hourly.temperature_2m.reduce(
-                (a: number, b: number) => a + b,
-                0
-              ) / polygon.fetchedData.hourly.temperature_2m.length
-            ).toFixed(2)
-          : "N/A"}{" "}
-        °C
-      </Popup>
-    </Polygon>
+      pathOptions={{ color: polygonColor }}
+    />
   );
 };
 
